@@ -2,6 +2,7 @@
 
 pragma solidity ^0.8.0;
 
+import {Checkpoints} from "openzeppelin-contracts/utils/structs/Checkpoints.sol";
 import {Set, SetStorage} from "evc/Set.sol";
 import {BaseRewardStreams} from "./BaseRewardStreams.sol";
 import {ITrackingRewardStreams} from "./interfaces/IRewardStreams.sol";
@@ -17,6 +18,7 @@ import {ITrackingRewardStreams} from "./interfaces/IRewardStreams.sol";
 /// - the current account's balance when the balance forwarding is enabled,
 /// - the account's balance of 0 when the balance forwarding is disabled.
 contract TrackingRewardStreams is BaseRewardStreams, ITrackingRewardStreams {
+    using Checkpoints for Checkpoints.Trace208;
     using Set for SetStorage;
 
     /// @notice Constructor for the TrackingRewardStreams contract.
@@ -27,11 +29,13 @@ contract TrackingRewardStreams is BaseRewardStreams, ITrackingRewardStreams {
     /// @notice Executes the balance tracking hook for an account
     /// @param account The account address to execute the hook for
     /// @param newAccountBalance The new balance of the account
+    /// @param checkpointBalances Whether to checkpoint the balances.
     /// @param forfeitRecentReward Whether to forfeit the most recent reward and not update the accumulator. Ignored
     /// when the new balance is greater than the current balance.
     function balanceTrackerHook(
         address account,
         uint256 newAccountBalance,
+        bool checkpointBalances,
         bool forfeitRecentReward
     ) external override {
         address rewarded = msg.sender;
@@ -62,5 +66,16 @@ contract TrackingRewardStreams is BaseRewardStreams, ITrackingRewardStreams {
         accountStorage.balance = newAccountBalance;
 
         emit BalanceUpdated(account, rewarded, currentAccountBalance, newAccountBalance);
+
+        if (!checkpointBalances || newAccountBalance == currentAccountBalance) return;
+
+        Checkpoints.Trace208 storage totalBalancesCheckpoint = totalBalancesCheckpoints[rewarded];
+        uint256 totalBalanceLatest = totalBalancesCheckpoint.latest();
+
+        totalBalancesCheckpoint.push(
+            uint48(block.timestamp), uint208(totalBalanceLatest + newAccountBalance - currentAccountBalance)
+        );
+
+        accountStorage.balanceCheckpoints.push(uint48(block.timestamp), newAccountBalance);
     }
 }

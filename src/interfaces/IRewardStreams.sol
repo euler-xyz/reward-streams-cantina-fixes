@@ -21,11 +21,17 @@ interface IRewardStreams {
     function earnedReward(address account, address rewarded, address reward, bool ignoreRecentReward) external view returns (uint256);
     function enabledRewards(address account, address rewarded) external view returns (address[] memory);
     function balanceOf(address account, address rewarded) external view returns (uint256);
+    function balanceOfCheckpoint(address account, address rewarded) external view returns (uint208);
+    function balanceOfCheckpointAt(address account, address rewarded, uint32 index) external view returns (uint48, uint208);
+    function balanceOfCheckpointLength(address account, address rewarded) external view returns (uint256);
     function rewardAmount(address rewarded, address reward) external view returns (uint256);
+    function rewardAmount(address rewarded, address reward, uint48 epoch) external view returns (uint256);
     function totalRewardedEligible(address rewarded, address reward) external view returns (uint256);
     function totalRewardRegistered(address rewarded, address reward) external view returns (uint256);
     function totalRewardClaimed(address rewarded, address reward) external view returns (uint256);
-    function rewardAmount(address rewarded, address reward, uint48 epoch) external view returns (uint256);
+    function totalBalanceCheckpoint(address rewarded) external view returns (uint208);
+    function totalBalanceCheckpointAt(address rewarded, uint32 index) external view returns (uint48, uint208);
+    function totalBalanceCheckpointLength(address rewarded) external view returns (uint256);
     function currentEpoch() external view returns (uint48);
     function getEpoch(uint48 timestamp) external view returns (uint48);
     function getEpochStartTimestamp(uint48 epoch) external view returns (uint48);

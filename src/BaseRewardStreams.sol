@@ -3,6 +3,7 @@
 pragma solidity ^0.8.0;
 
 import {ReentrancyGuard} from "openzeppelin-contracts/utils/ReentrancyGuard.sol";
+import {Checkpoints} from "openzeppelin-contracts/utils/structs/Checkpoints.sol";
 import {SafeERC20, IERC20} from "openzeppelin-contracts/token/ERC20/utils/SafeERC20.sol";
 import {EVCUtil} from "evc/utils/EVCUtil.sol";
 import {Set, SetStorage} from "evc/Set.sol";
@@ -13,6 +14,7 @@ import {IRewardStreams} from "./interfaces/IRewardStreams.sol";
 /// @author Euler Labs (https://www.eulerlabs.com/)
 /// @notice Base class that allows anyone to register a reward distribution stream for a given token.
 abstract contract BaseRewardStreams is IRewardStreams, EVCUtil, ReentrancyGuard {
+    using Checkpoints for Checkpoints.Trace208;
     using SafeERC20 for IERC20;
     using Set for SetStorage;
 
@@ -72,6 +74,8 @@ abstract contract BaseRewardStreams is IRewardStreams, EVCUtil, ReentrancyGuard 
     struct AccountStorage {
         /// @notice The account's rewarded token balance.
         uint256 balance;
+        /// @notice Checkpoints for tracking the balance changes of the account.
+        Checkpoints.Trace208 balanceCheckpoints;
         /// @notice The account's set of enabled reward tokens.
         SetStorage enabledRewards;
         /// @notice The account's earnings per reward token.
@@ -83,6 +87,9 @@ abstract contract BaseRewardStreams is IRewardStreams, EVCUtil, ReentrancyGuard 
 
     /// @notice Stored account data per address and rewarded token.
     mapping(address account => mapping(address rewarded => AccountStorage)) internal accounts;
+
+    /// @notice Stored total balances checkpoints per rewarded token.
+    mapping(address rewarded => Checkpoints.Trace208) internal totalBalancesCheckpoints;
 
     /// @notice Event emitted when a reward stream is registered.
     event RewardRegistered(
@@ -356,12 +363,45 @@ abstract contract BaseRewardStreams is IRewardStreams, EVCUtil, ReentrancyGuard 
         return accounts[account][rewarded].balance;
     }
 
+    function balanceOfCheckpoint(address account, address rewarded) external view virtual override returns (uint208) {
+        return accounts[account][rewarded].balanceCheckpoints.latest();
+    }
+
+    function balanceOfCheckpointAt(
+        address account,
+        address rewarded,
+        uint32 index
+    ) external view virtual override returns (uint48, uint208) {
+        Checkpoints.Checkpoint208 memory checkpoint = accounts[account][rewarded].balanceCheckpoints.at(index);
+        return (checkpoint._key, checkpoint._value);
+    }
+
+    function balanceOfCheckpointLength(
+        address account,
+        address rewarded
+    ) external view virtual override returns (uint256) {
+        return accounts[account][rewarded].balanceCheckpoints.length();
+    }
+
     /// @notice Returns the reward token amount for a specific rewarded token and current epoch.
     /// @param rewarded The address of the rewarded token.
     /// @param reward The address of the reward token.
     /// @return The reward token amount for the rewarded token and current epoch.
     function rewardAmount(address rewarded, address reward) external view virtual override returns (uint256) {
         return rewardAmount(rewarded, reward, currentEpoch());
+    }
+
+    /// @notice Returns the reward token amount for a specific rewarded token and epoch.
+    /// @param rewarded The address of the rewarded token.
+    /// @param reward The address of the reward token.
+    /// @param epoch The epoch to get the reward token amount for.
+    /// @return The reward token amount for the rewarded token and epoch.
+    function rewardAmount(
+        address rewarded,
+        address reward,
+        uint48 epoch
+    ) public view virtual override returns (uint256) {
+        return rewardAmount(distributions[rewarded][reward], epoch);
     }
 
     /// @notice Returns the total supply of the rewarded token enabled and eligible to receive the reward token.
@@ -388,17 +428,20 @@ abstract contract BaseRewardStreams is IRewardStreams, EVCUtil, ReentrancyGuard 
         return distributions[rewarded][reward].totalClaimed;
     }
 
-    /// @notice Returns the reward token amount for a specific rewarded token and epoch.
-    /// @param rewarded The address of the rewarded token.
-    /// @param reward The address of the reward token.
-    /// @param epoch The epoch to get the reward token amount for.
-    /// @return The reward token amount for the rewarded token and epoch.
-    function rewardAmount(
+    function totalBalanceCheckpoint(address rewarded) external view virtual override returns (uint208) {
+        return totalBalancesCheckpoints[rewarded].latest();
+    }
+
+    function totalBalanceCheckpointAt(
         address rewarded,
-        address reward,
-        uint48 epoch
-    ) public view virtual override returns (uint256) {
-        return rewardAmount(distributions[rewarded][reward], epoch);
+        uint32 index
+    ) external view virtual override returns (uint48, uint208) {
+        Checkpoints.Checkpoint208 memory checkpoint = totalBalancesCheckpoints[rewarded].at(index);
+        return (checkpoint._key, checkpoint._value);
+    }
+
+    function totalBalanceCheckpointLength(address rewarded) external view virtual override returns (uint256) {
+        return totalBalancesCheckpoints[rewarded].length();
     }
 
     /// @notice Returns the current epoch based on the block timestamp.
