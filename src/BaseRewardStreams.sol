@@ -550,7 +550,6 @@ abstract contract BaseRewardStreams is IRewardStreams, EVCUtil, ReentrancyGuard 
         distributionStorage.accumulator = accumulator;
 
         // Update the account's earned amount. Snapshot new accumulator value for the account.
-        // Downcasting is safe because the `totalRegistered <= type(uint160).max / SCALER`.
         accountEarnStorage.claimable = claimable;
         accountEarnStorage.accumulator = accumulator;
 
